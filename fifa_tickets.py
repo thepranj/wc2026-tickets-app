@@ -34,6 +34,7 @@ MATCHES = [
         "Venue": "Boston Stadium",
         "Stage": "Group Stage",
         "Category": "Cat 2",
+        "Seats": "Block 224, Row 6, Seats 7–10",
         "# Tickets": 4,
         "Face Value / Ticket": 400.00,
         "url": "https://seatdata.io/events/haiti-vs-scotland-world-cup-group-c-foxborough-jun-13-2026/1126436/",
@@ -46,6 +47,7 @@ MATCHES = [
         "Venue": "Boston Stadium",
         "Stage": "Group Stage",
         "Category": "Cat 1",
+        "Seats": "Block 137, Row 2, Seats 7–10",
         "# Tickets": 4,
         "Face Value / Ticket": 600.00,
         "url": "https://seatdata.io/events/scotland-vs-morocco-world-cup-group-c-foxborough-jun-19-2026/1126446/",
@@ -58,6 +60,7 @@ MATCHES = [
         "Venue": "Philadelphia Stadium",
         "Stage": "Group Stage",
         "Category": "Cat 2",
+        "Seats": "Block 225, Row 27, Seats 17–20",
         "# Tickets": 4,
         "Face Value / Ticket": 430.00,
         "url": "https://seatdata.io/events/france-vs-tbd-world-cup-group-i-philadelphia-jun-22-2026/1126440/",
@@ -70,6 +73,7 @@ MATCHES = [
         "Venue": "Philadelphia Stadium",
         "Stage": "Group Stage",
         "Category": "Cat 1",
+        "Seats": "Block 131, Row 19, Seats 9–12",
         "# Tickets": 4,
         "Face Value / Ticket": 500.00,
         "url": "https://seatdata.io/events/croatia-vs-ghana-world-cup-group-l-philadelphia-jun-27-2026/1126430/",
@@ -82,6 +86,7 @@ MATCHES = [
         "Venue": "Boston Stadium",
         "Stage": "Round of 32",
         "Category": "Cat 1",
+        "Seats": "Block 141, Row 24, Seats 13–16",
         "# Tickets": 4,
         "Face Value / Ticket": 620.00,
         "url": "https://seatdata.io/events/1e-vs-3abcdf-world-cup-round-of-32-foxborough-jun-29-2026/1126437/",
@@ -94,6 +99,7 @@ MATCHES = [
         "Venue": "Philadelphia Stadium",
         "Stage": "Round of 16",
         "Category": "Cat 1",
+        "Seats": "Block 107, Row 13, Seats 13–16",
         "# Tickets": 4,
         "Face Value / Ticket": 840.00,
         "url": "https://seatdata.io/events/w74-vs-w77-world-cup-round-of-16-philadelphia-jul-04-2026/1126431/",
@@ -106,6 +112,7 @@ MATCHES = [
         "Venue": "Boston Stadium",
         "Stage": "Quarter-Final",
         "Category": "Cat 2",
+        "Seats": "Block 334, Row 13, Seats 21–24",
         "# Tickets": 4,
         "Face Value / Ticket": 890.00,
         "url": "https://seatdata.io/events/w89-vs-w90-world-cup-quarter-finals-foxborough-jul-09-2026/1126456/",
@@ -171,7 +178,7 @@ tickets = []
 for m in MATCHES:
     p = live_prices[m["Match #"]]
     tickets.append({
-        "Sell?":                    False,
+        "Sell?":                    True,
         "Match #":                  m["Match #"],
         "Fixture":                  m["Fixture"],
         "Date":                     m["Date"],
@@ -179,6 +186,7 @@ for m in MATCHES:
         "Venue":                    m["Venue"],
         "Stage":                    m["Stage"],
         "Category":                 m["Category"],
+        "Seats" :                   m["Seats"],
         "# Tickets":                m["# Tickets"],
         "Face Value / Ticket":      m["Face Value / Ticket"],
         "Resale Get-In / Ticket":   p["get_in"],
@@ -199,7 +207,7 @@ st.subheader("My Tickets — Check games you want to sell")
 
 edited = st.data_editor(
     base_df[[
-        "Sell?", "Match #", "Fixture", "Date", "Time", "Venue", "Stage", "Category",
+        "Sell?", "Match #", "Fixture", "Date", "Time", "Venue", "Stage", "Category", "Seats",
         "# Tickets", "Face Value / Ticket", "Resale Get-In / Ticket",
         "Resale Median / Ticket", "Profit at Median", "7D Change", "Demand",
     ]],
@@ -282,3 +290,27 @@ if tickets_selling > 0:
     st.subheader("Profit by Game Being Sold (at Median Resale)")
     chart_df = sell_df[["Fixture", "Profit at Median"]].set_index("Fixture")
     st.bar_chart(chart_df)
+
+# ── Historical tracking (hardcoded + today's live data) ──────────────────────
+
+HISTORY = pd.DataFrame([
+    {"Date": "2026-04-03", "Expected from Sales (Gross)": 55664},
+    # add more rows here each day manually, e.g.:
+    # {"Date": "2026-04-04", "Expected from Sales (Gross)": 75200},
+])
+
+# Compute today's total (all tickets sold at median)
+today_str = datetime.now().strftime("%Y-%m-%d")
+today_total = base_df["Total Resale (Median)"].sum()
+
+# Append today if not already in history
+if today_str not in HISTORY["Date"].values:
+    today_row = pd.DataFrame([{"Date": today_str, "Expected from Sales (Gross)": today_total}])
+    HISTORY = pd.concat([HISTORY, today_row], ignore_index=True)
+
+HISTORY["Date"] = pd.to_datetime(HISTORY["Date"])
+HISTORY = HISTORY.sort_values("Date").set_index("Date")
+
+st.divider()
+st.subheader("📈 Expected Total from Sales Over Time (All Tickets, Gross)")
+st.line_chart(HISTORY)
