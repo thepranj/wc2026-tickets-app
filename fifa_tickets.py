@@ -36,6 +36,7 @@ MATCHES = [
         "Stage": "Group Stage",
         "Category": "Cat 2",
         "Seats": "Block 224, Row 6, Seats 7–10",
+        "Tier": "Middle Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 400.00,
         "url": "https://seatdata.io/events/haiti-vs-scotland-world-cup-group-c-foxborough-jun-13-2026/1126436/",
@@ -50,6 +51,7 @@ MATCHES = [
         "Stage": "Group Stage",
         "Category": "Cat 1",
         "Seats": "Block 137, Row 2, Seats 7–10",
+        "Tier": "Lower Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 600.00,
         "url": "https://seatdata.io/events/scotland-vs-morocco-world-cup-group-c-foxborough-jun-19-2026/1126446/",
@@ -64,6 +66,7 @@ MATCHES = [
         "Stage": "Group Stage",
         "Category": "Cat 2",
         "Seats": "Block 225, Row 27, Seats 17–20",
+        "Tier": "Upper Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 430.00,
         "url": "https://seatdata.io/events/france-vs-tbd-world-cup-group-i-philadelphia-jun-22-2026/1126440/",
@@ -78,6 +81,7 @@ MATCHES = [
         "Stage": "Group Stage",
         "Category": "Cat 1",
         "Seats": "Block 131, Row 19, Seats 9–12",
+        "Tier": "Lower Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 500.00,
         "url": "https://seatdata.io/events/croatia-vs-ghana-world-cup-group-l-philadelphia-jun-27-2026/1126430/",
@@ -92,6 +96,7 @@ MATCHES = [
         "Stage": "Round of 32",
         "Category": "Cat 1",
         "Seats": "Block 141, Row 24, Seats 13–16",
+        "Tier": "Lower Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 620.00,
         "url": "https://seatdata.io/events/1e-vs-3abcdf-world-cup-round-of-32-foxborough-jun-29-2026/1126437/",
@@ -106,6 +111,7 @@ MATCHES = [
         "Stage": "Round of 16",
         "Category": "Cat 1",
         "Seats": "Block 107, Row 13, Seats 13–16",
+        "Tier": "Lower Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 840.00,
         "url": "https://seatdata.io/events/w74-vs-w77-world-cup-round-of-16-philadelphia-jul-04-2026/1126431/",
@@ -120,6 +126,7 @@ MATCHES = [
         "Stage": "Quarter-Final",
         "Category": "Cat 2",
         "Seats": "Block 334, Row 13, Seats 21–24",
+        "Tier": "Upper Tier",
         "# Tickets": 4,
         "Face Value / Ticket": 890.00,
         "url": "https://seatdata.io/events/w89-vs-w90-world-cup-quarter-finals-foxborough-jul-09-2026/1126456/",
@@ -138,23 +145,29 @@ FALLBACKS = {
 }
 
 # ── Scraper (cached for 24 hours) ─────────────────────────────────────────────
+TIER_TO_SECTION = {
+    "Lower Tier": "Lower Bowl",
+    "Upper Tier": "Upper Bowl",
+    "Middle Tier": "Club Level",
+}
+
 @st.cache_data(ttl=86400, show_spinner=False)
-def fetch_prices(url: str, match_id: int) -> dict:
+def fetch_prices(url: str, match_id: int, tier: str) -> dict:
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, "html.parser")
         text = soup.get_text(" ", strip=True)
 
-        # Get-in price: "$ 485"
+        # Get-in price
         get_in_match = re.search(r"Current Get-In Price[^$]*\$\s*([\d,]+)", text)
         get_in = int(get_in_match.group(1).replace(",", "")) if get_in_match else FALLBACKS[match_id]["get_in"]
 
-        # 7D change: "6.4% from last week"
+        # 7D change
         change_match = re.search(r"([\d.]+)%\s*from last week", text)
         change = float(change_match.group(1)) if change_match else FALLBACKS[match_id]["change"]
 
-        # Demand level
+        # Demand
         if "High demand" in text:
             demand = "🟢 High"
         elif "Moderate demand" in text:
@@ -162,20 +175,39 @@ def fetch_prices(url: str, match_id: int) -> dict:
         else:
             demand = "🔴 Low"
 
-        # Median: "currently $1,200"
+        # Median
         median_match = re.search(r"currently \$([\d,]+)", text)
         median = int(median_match.group(1).replace(",", "")) if median_match else FALLBACKS[match_id]["median"]
 
-        return {"get_in": get_in, "median": median, "change": change, "demand": demand}
+        # Section breakdown — find the table rows
+        target_section = TIER_TO_SECTION.get(tier, "Lower Bowl")
+        comp_price = None
+        rows = soup.find_all("tr")
+        for row in rows:
+            cells = [td.get_text(strip=True) for td in row.find_all("td")]
+            if len(cells) >= 2 and target_section in cells[0]:
+                price_match = re.search(r"\$([\d,]+)", cells[1])
+                if price_match:
+                    comp_price = int(price_match.group(1).replace(",", ""))
+                break
+
+        return {
+            "get_in": get_in,
+            "median": median,
+            "change": change,
+            "demand": demand,
+            "comp_price": comp_price,
+        }
 
     except Exception:
-        return FALLBACKS[match_id]
+        return {**FALLBACKS[match_id], "comp_price": None}
 
 # ── Fetch all prices ──────────────────────────────────────────────────────────
 st.title("⚽ FIFA World Cup 2026™ — My Tickets")
 
 with st.spinner("Fetching latest prices from seatdata.io…"):
-    live_prices = {m["Match #"]: fetch_prices(m["url"], m["Match #"]) for m in MATCHES}
+    # Fetch all prices — pass tier now
+    live_prices = {m["Match #"]: fetch_prices(m["url"], m["Match #"], m["Tier"]) for m in MATCHES}
 
 fetched_at = datetime.now().strftime("%-I:%M %p, %b %-d %Y")
 st.caption(f"Prices from [seatdata.io](https://seatdata.io) · Auto-refreshes every 24 hrs · Last fetched {fetched_at}")
@@ -198,6 +230,7 @@ for m in MATCHES:
         "# Tickets":                m["# Tickets"],
         "Face Value / Ticket":      m["Face Value / Ticket"],
         "Resale Get-In / Ticket":   p["get_in"],
+        "Comp Seat Avg / Ticket":   p["comp_price"],
         "Resale Median / Ticket":   p["median"],
         "7D Change":                p["change"],
         "Demand":                   p["demand"],
@@ -216,7 +249,7 @@ st.subheader("My Tickets — Check games you want to sell")
 edited = st.data_editor(
     base_df[[
         "Sell?", "Match #", "Fixture", "Date", "Time", "Venue", "Venue Map", "Stage", "Category", "Seats",
-        "# Tickets", "Face Value / Ticket", "Resale Get-In / Ticket",
+        "# Tickets", "Face Value / Ticket", "Resale Get-In / Ticket", "Comp Seat Avg / Ticket",
         "Resale Median / Ticket", "Profit at Median", "7D Change", "Demand",
     ]],
     use_container_width=True,
@@ -229,6 +262,7 @@ edited = st.data_editor(
         "Venue Map":                st.column_config.LinkColumn("Map", display_text="🗺️ View Map"),
         "Face Value / Ticket":      st.column_config.NumberColumn(format="$%d"),
         "Resale Get-In / Ticket":   st.column_config.NumberColumn(format="$%d"),
+        "Comp Seat Avg / Ticket":   st.column_config.NumberColumn("Comp Seat Avg", format="$%d"),
         "Resale Median / Ticket":   st.column_config.NumberColumn(format="$%d"),
         "Profit at Median":         st.column_config.NumberColumn(format="$%d"),
         "7D Change":                st.column_config.NumberColumn("7D Change", format="%.1f%%", width="small"),
