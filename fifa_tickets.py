@@ -3,6 +3,11 @@ import pandas as pd
 from datetime import datetime
 from matches import MATCHES
 from scraper import fetch_prices_raw
+from supabase import create_client
+
+@st.cache_resource
+def get_supabase():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 st.set_page_config(page_title="FIFA World Cup 2026 – My Tickets", page_icon="⚽", layout="wide")
 
@@ -160,26 +165,41 @@ if tickets_selling > 0:
     chart_df = sell_df[["Fixture", "Profit at Median"]].set_index("Fixture")
     st.bar_chart(chart_df)
 
-# ── Historical tracking (hardcoded + today's live data) ──────────────────────
+# ── Historical charts (from Supabase) ────────────────────────────────────────
 
-HISTORY = pd.DataFrame([
-    {"Date": "2026-04-03", "Expected from Sales (Gross)": 55664},
-    # add more rows here each day manually, e.g.:
-    # {"Date": "2026-04-04", "Expected from Sales (Gross)": 75200},
-])
+sb = get_supabase()
+history_resp = sb.table("price_history").select("*").order("date").execute()
+history_data = history_resp.data
 
-# Compute today's total (all tickets sold at median)
-today_str = datetime.now().strftime("%Y-%m-%d")
-today_total = base_df["Total Resale (Median)"].sum()
+if history_data:
+    hist_df = pd.DataFrame(history_data)
+    hist_df["date"] = pd.to_datetime(hist_df["date"])
 
-# Append today if not already in history
-if today_str not in HISTORY["Date"].values:
-    today_row = pd.DataFrame([{"Date": today_str, "Expected from Sales (Gross)": today_total}])
-    HISTORY = pd.concat([HISTORY, today_row], ignore_index=True)
+    # Chart 1: Total portfolio value over time
+    st.divider()
+    st.subheader("Total Portfolio Value Over Time")
 
-HISTORY["Date"] = pd.to_datetime(HISTORY["Date"])
-HISTORY = HISTORY.sort_values("Date").set_index("Date")
+    # Each match has 4 tickets
+    tickets_per_match = {m["Match #"]: m["# Tickets"] for m in MATCHES}
+    hist_df["total_value"] = hist_df.apply(
+        lambda r: r["median_price"] * tickets_per_match.get(r["match_id"], 4), axis=1
+    )
+    portfolio_df = hist_df.groupby("date")["total_value"].sum().reset_index()
+    portfolio_df = portfolio_df.set_index("date")
+    st.line_chart(portfolio_df, y="total_value", y_label="Total Value ($)", x_label="Date")
 
-st.divider()
-st.subheader("📈 Expected Total from Sales Over Time (All Tickets, Gross)")
-st.line_chart(HISTORY)
+    # Chart 2: Per-match price trends with dropdown
+    st.divider()
+    st.subheader("Per-Match Price Trends")
+
+    fixtures = ["All matches"] + sorted(hist_df["fixture"].unique().tolist())
+    selected = st.selectbox("Filter by match", fixtures)
+
+    if selected == "All matches":
+        pivot = hist_df.pivot_table(index="date", columns="fixture", values="median_price")
+        st.line_chart(pivot)
+    else:
+        match_df = hist_df[hist_df["fixture"] == selected][["date", "median_price"]].set_index("date")
+        st.line_chart(match_df, y="median_price", y_label="Median Price ($)", x_label="Date")
+else:
+    st.info("No historical price data yet. Data will appear after the first daily scrape runs.")
