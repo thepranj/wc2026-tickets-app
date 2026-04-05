@@ -1,0 +1,26 @@
+name: Daily Price Scrape
+
+on:
+  schedule:
+    # 9 AM ET = 1 PM UTC
+    - cron: "0 13 * * *"
+  workflow_dispatch: # allow manual runs from GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 supabase
+
+      - name: Scrape and store prices
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python scrape_prices.py
