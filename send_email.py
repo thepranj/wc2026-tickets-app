@@ -1,10 +1,12 @@
 # send_email.py — Daily email summary after price scrape
-# Sends to the family via Resend with price alerts + full summary.
+# Sends to the family via Gmail SMTP with price alerts + full summary.
 
 import os
+import smtplib
 from datetime import date, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-import resend
 from supabase import create_client
 
 from matches import MATCHES
@@ -116,8 +118,22 @@ def build_html(today_prices, alerts, today_date):
     return html
 
 
+def send_gmail(subject, html, sender, app_password, recipients):
+    """Send an HTML email via Gmail SMTP."""
+    msg = MIMEMultipart("alternative")
+    msg["From"] = f"WC2026 Tickets <{sender}>"
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(sender, app_password)
+        server.sendmail(sender, recipients, msg.as_string())
+
+
 def main():
-    resend.api_key = os.environ["RESEND_API_KEY"]
+    gmail_user = "jalajsingh37@gmail.com"
+    gmail_app_password = os.environ["GMAIL_APP_PASSWORD"]
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
     today_date = date.today()
@@ -144,12 +160,7 @@ def main():
     print(f"Subject: {subject}")
     print(f"Alerts: {num_alerts}")
 
-    resend.Emails.send({
-        "from": "WC2026 Tickets <onboarding@resend.dev>",
-        "to": RECIPIENTS,
-        "subject": subject,
-        "html": html,
-    })
+    send_gmail(subject, html, gmail_user, gmail_app_password, RECIPIENTS)
 
     print("Email sent.")
 
