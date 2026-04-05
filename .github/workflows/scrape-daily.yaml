@@ -17,10 +17,17 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 supabase
+        run: pip install requests beautifulsoup4 supabase resend
 
       - name: Scrape and store prices
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python scrape_prices.py
+
+      - name: Send daily email
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python send_email.py
