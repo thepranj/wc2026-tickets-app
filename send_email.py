@@ -112,6 +112,7 @@ def build_html(today_prices, alerts, today_date):
         f"<br>"
         f"{summary_html}"
         f"<br>"
+        f"<p style='margin:16px 0;'><a href='https://wc2026-tickets-pranj.streamlit.app/' style='display:inline-block;padding:10px 20px;background:#1a73e8;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;'>View Full Dashboard &amp; Charts</a></p>"
         f"<p style='color:#999;font-size:12px;'>Prices from seatdata.io. Scraped daily at 9 AM ET.</p>"
         f"</div>"
     )
