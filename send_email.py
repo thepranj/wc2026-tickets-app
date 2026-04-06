@@ -77,8 +77,8 @@ def build_html(today_prices, alerts, today_date):
         alerts_html = "<p style='color:#666;'>No major price movements today.</p>"
 
     # Summary table
-    summary_html = "<h2>&#9917; Full Summary</h2><table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;width:100%;'>"
-    summary_html += "<tr style='background:#f5f5f5;'><th>Match</th><th>Get-In</th><th>Median</th><th>Demand</th></tr>"
+    summary_html = "<h2>&#9917; Full Summary</h2><table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;width:100%;font-size:14px;'>"
+    summary_html += "<tr style='background:#f5f5f5;'><th>Match</th><th>Date</th><th>Time</th><th>Venue</th><th>Stage</th><th>Get-In</th><th>Median</th><th>Demand</th></tr>"
 
     total_portfolio = 0
     for m in MATCHES:
@@ -91,6 +91,10 @@ def build_html(today_prices, alerts, today_date):
         summary_html += (
             f"<tr>"
             f"<td>{p['fixture']}</td>"
+            f"<td>{m['Date']}</td>"
+            f"<td>{m['Time']}</td>"
+            f"<td>{m['Venue']}</td>"
+            f"<td>{m['Stage']}</td>"
             f"<td>${p['get_in_price']:,}</td>"
             f"<td>${p['median_price']:,}</td>"
             f"<td>{p['demand']}</td>"
@@ -100,7 +104,7 @@ def build_html(today_prices, alerts, today_date):
     summary_html += (
         f"<tr style='background:#e3f2fd;font-weight:bold;'>"
         f"<td>Total Portfolio Value</td>"
-        f"<td colspan='3'>${total_portfolio:,}</td>"
+        f"<td colspan='7'>${total_portfolio:,}</td>"
         f"</tr>"
     )
     summary_html += "</table>"
